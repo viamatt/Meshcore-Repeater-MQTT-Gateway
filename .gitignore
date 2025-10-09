@@ -1,3 +1,14 @@
+# Local tools and configs (may contain secrets)
+tools/
+configure_gateway.py
+
+# Environment/local secret files
+.env
+*.env
+*.local
+*.local.*
+secrets.*
+
 # PlatformIO
 .pio
 .pioenvs
