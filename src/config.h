@@ -19,10 +19,10 @@
 #define DEFAULT_LORA_TX_POWER 20
 
 // Default MQTT Settings
-#define DEFAULT_MQTT_SERVER "mqtt.ripplenetworks.com.au"
+#define DEFAULT_MQTT_SERVER "mqtt.example.com"
 #define DEFAULT_MQTT_PORT 8883
-#define DEFAULT_MQTT_USER "nswmesh"
-#define DEFAULT_MQTT_PASSWORD "nswmesh"
+#define DEFAULT_MQTT_USER ""
+#define DEFAULT_MQTT_PASSWORD ""
 #define DEFAULT_MQTT_CLIENT_ID "meshcore_gateway"
 #define DEFAULT_MQTT_TOPIC_PREFIX "MESHCORE"
 
@@ -238,7 +238,7 @@ inline GatewayConfig getDefaultConfig() {
     config.lora.spreadingFactor = DEFAULT_LORA_SF;
     config.lora.codingRate = DEFAULT_LORA_CR;
     config.lora.txPower = DEFAULT_LORA_TX_POWER;
-    config.lora.syncWord = 0x12;
+    config.lora.syncWord = 0x34;
     config.lora.enableCRC = true;
     
     // Repeater defaults

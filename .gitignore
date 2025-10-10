@@ -42,7 +42,43 @@ Thumbs.db
 # Configuration scripts (contains credentials)
 configure_gateway.py
 
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+.clang_complete
+.gcc-flags.json
+
+# IDE/editor
+.vscode/
+.idea/
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+env/
+
+# Build artifacts
+build/
+*.bin
+*.elf
+*.map
+*.hex
+
+# Env/secrets
+.env
+.env.*
+secrets.*
+
 # Logs
+*.log
+
 *.log
 
 # Test files

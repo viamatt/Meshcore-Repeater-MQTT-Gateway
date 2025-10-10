@@ -55,7 +55,7 @@ A powerful gateway firmware that bridges MeshCore LoRa mesh networks with MQTT b
 
 ```bash
 git clone <your-repo-url>
-cd MeshCore-MQTT-Gateway
+cd <repo-dir>
 ```
 
 Open in VS Code with PlatformIO extension installed.
@@ -66,7 +66,7 @@ Edit `platformio.ini` to select your target board:
 
 ```ini
 [platformio]
-default_envs = esp32_mqtt_gateway  ; or heltec_v3_mqtt
+default_envs = lilygo_lora32_v21  ; or esp32_mqtt_gateway, heltec_v3_mqtt
 ```
 
 If using a custom board, adjust pin definitions in `src/config.h`:
@@ -613,7 +613,7 @@ This project is licensed under the MIT License - see LICENSE file for details.
 
 ## 🎯 Roadmap
 
-- [ ] TLS/SSL support for MQTT
+- [x] TLS/SSL support for MQTT
 - [ ] Web configuration interface
 - [ ] OTA (Over-The-Air) firmware updates
 - [ ] Message encryption
