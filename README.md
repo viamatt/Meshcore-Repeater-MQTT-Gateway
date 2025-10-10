@@ -155,7 +155,7 @@ Bandwidth: 250 kHz
 Spreading Factor: 7-12 (7=fastest, 12=longest range)
 Coding Rate: 5-8
 TX Power: 2-20 dBm
-Sync Word: 0x12
+Sync Word: 0x34
 Enable CRC: yes
 ```
 
