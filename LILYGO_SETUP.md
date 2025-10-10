@@ -307,7 +307,7 @@ void updateDisplay() {
 ## 🆘 Need Help?
 
 - Check [SERIAL_COMMANDS.md](SERIAL_COMMANDS.md) for command reference
-- Read [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) for MeshCore integration
+- MeshCore integration is already complete in this firmware
 - Visit [MeshCore Discord](https://discord.gg/meshcore) for community support
 - Open an issue on GitHub for bugs
 

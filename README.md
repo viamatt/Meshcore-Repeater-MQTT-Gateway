@@ -13,7 +13,6 @@ A powerful gateway firmware that bridges MeshCore LoRa mesh networks with MQTT b
 - **Multiple Publishing Modes** - Publish raw hex packets and/or decoded messages
 - **Remote Commands** - Send commands from MQTT to the gateway
 - **Gateway Status Reporting** - Automatic online/offline status with last will
-
 - **NTP Clock Sync** - Automatic time sync (NTP) with timezone support; required for TLS certificate validation
 
 ## 📚 Documentation Index
@@ -31,8 +30,8 @@ A powerful gateway firmware that bridges MeshCore LoRa mesh networks with MQTT b
     - [tools/configure_mqtt_topic_selector.py](tools/configure_mqtt_topic_selector.py) — Pick ISO-coded MQTT topic prefixes
 
 - **Development and integration**
-  - [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) — Wire the firmware to the MeshCore library
-  - [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md) — Repository map, components, and status
+  - MeshCore integration is already complete in this firmware.
+  
 
 - **Reference**
   - [platformio.ini](platformio.ini) — Build environments and dependencies

@@ -50,7 +50,7 @@ pio run --target upload
    Port: 1883 (use 8883 for TLS)
    [Rest can use defaults]
    ```
-   Note: Country/Region inputs are normalized to uppercase and spaces removed. Use ISO2 for country (e.g., AU). For TLS:
+   Note: Country/Region inputs are normalized to uppercase and spaces removed. Use ISO2 for country (e.g., AU) and state (e.g. NSW). For TLS:
    - Set Port to 8883 and Enable TLS = y
    - Use custom CA = n (firmware embeds the broker CA)
    - The firmware will retry via resolved IP if the certificate CN is an IP.
@@ -128,7 +128,6 @@ mosquitto_pub -h mqtt.example.com \
 ## 📚 Learn More
 
 - **Full README**: Detailed documentation → [README.md](README.md)
-- **Integration Guide**: Connect to real MeshCore → [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md)
 - **Examples**: MQTT clients and integrations → [examples/](examples/)
 - **MeshCore Docs**: <https://github.com/meshcore-dev/MeshCore>
 
