@@ -14,6 +14,8 @@ A powerful gateway firmware that bridges MeshCore LoRa mesh networks with MQTT b
 - **Remote Commands** - Send commands from MQTT to the gateway
 - **Gateway Status Reporting** - Automatic online/offline status with last will
 
+- **NTP Clock Sync** - Automatic time sync (NTP) with timezone support; required for TLS certificate validation
+
 ## 📚 Documentation Index
 
 - **Getting started**
@@ -94,8 +96,9 @@ Or use the PlatformIO upload button in VS Code.
 5. Configure MQTT settings (option 2)
 6. Configure LoRa settings (option 3)
 7. Configure Repeater settings (option 4)
-8. Save configuration (option 6)
-9. Restart device (option 8)
+8. Configure Clock / NTP (option 13) — recommended for TLS
+9. Save configuration (option 6)
+10. Restart device (option 8)
 
 ## ⚙️ Configuration
 
@@ -166,6 +169,16 @@ Auto ACK: yes
 Broadcast Enabled: yes
 Route Timeout: 300 seconds
 ```
+
+#### Clock / NTP Configuration
+```
+NTP Server: pool.ntp.org
+Timezone offset (minutes): 0
+Auto-sync at boot: yes
+```
+
+Notes:
+- Accurate time is required for TLS certificate validation. When WiFi is enabled and Auto-sync is on, the firmware will sync time at boot. You can also trigger a manual sync from the serial menu (Clock Sync, option 13).
 
 ## 📡 MQTT Topics
 ## 🔒 Using a Custom TLS CA
