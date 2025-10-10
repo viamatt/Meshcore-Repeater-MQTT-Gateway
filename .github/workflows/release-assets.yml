@@ -75,11 +75,19 @@ jobs:
             echo "tag=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Gather binaries
+        run: |
+          mkdir -p upload
+          # Find any firmware-*.bin anywhere under dist and copy to upload/
+          find dist -type f -name 'firmware-*.bin' -print -exec cp {} upload/ \;
+          echo "Collected files:"
+          ls -la upload || true
+
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           files: |
-            dist/**/firmware-*.bin
+            upload/*.bin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
