@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <HardwareSerial.h>
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include "ca_cert.h"
