@@ -585,6 +585,16 @@ Import this flow to visualize mesh traffic:
 ]
 ```
 
+## ✅ Supported Boards (ESP focus)
+
+- Heltec WiFi LoRa 32 V3 (`heltec_v3_mqtt`)
+- Heltec WiFi LoRa 32 V2 (`heltec_v2_mqtt`)
+- TTGO T-Beam SX1276 (`tbeam_sx1276`)
+- LilyGo LoRa32 V2.1 1.6 (`lilygo_lora32_v21`)
+- Generic ESP32 devkit + SX1276 (`esp32_mqtt_gateway`)
+
+RAK (nRF52-based, e.g., RAK 4631) is planned; requires porting WiFi/time/MQTT stack and RadioLib pins for that platform. UF2 output will be available after porting.
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please:

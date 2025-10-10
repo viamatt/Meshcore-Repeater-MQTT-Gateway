@@ -54,6 +54,31 @@
     #define OLED_SDA 21
     #define OLED_SCL 22
     #define OLED_RST 16
+#elif defined(HELTEC_V2)
+    // Heltec WiFi LoRa 32 V2 (SX1276)
+    #define LORA_SCK 5
+    #define LORA_MISO 19
+    #define LORA_MOSI 27
+    #define LORA_CS 18
+    #define LORA_RST 14
+    #define LORA_DIO0 26
+    #define LORA_DIO1 35
+    #define LORA_DIO2 34
+    // OLED (SSD1306) pins
+    #define OLED_SDA 4
+    #define OLED_SCL 15
+    #define OLED_RST 16
+#elif defined(TBEAM_SX1276)
+    // TTGO T-Beam (SX1276 variant)
+    #define LORA_SCK 5
+    #define LORA_MISO 19
+    #define LORA_MOSI 27
+    #define LORA_CS 18
+    #define LORA_RST 23
+    #define LORA_DIO0 26
+    #define LORA_DIO1 33
+    #define LORA_DIO2 32
+    // Optional GPS/UART pins exist but not used here
 #else
     // Generic ESP32 with LoRa module
     #define LORA_SCK 5
