@@ -35,6 +35,10 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio
 
+      - name: Install Python tool deps (optional)
+        if: ${{ hashFiles('tools/requirements.txt') != '' }}
+        run: pip install -r tools/requirements.txt
+
       - name: Build ${{ matrix.env }}
         run: pio run -e ${{ matrix.env }}
 

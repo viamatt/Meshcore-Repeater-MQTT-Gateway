@@ -2,6 +2,8 @@ name: Build (PlatformIO)
 
 on:
   push:
+    branches:
+      - '**'
   pull_request:
 
 jobs:
@@ -40,6 +42,7 @@ jobs:
           key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini') }}
 
       - name: Install Python tool deps
+        if: ${{ hashFiles('tools/requirements.txt') != '' }}
         run: pip install -r tools/requirements.txt
 
       - name: Build ${{ matrix.env }}
