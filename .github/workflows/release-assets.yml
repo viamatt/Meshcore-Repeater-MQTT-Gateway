@@ -3,6 +3,9 @@ name: Release Assets (PlatformIO)
 on:
   release:
     types: [published]
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       tag:
@@ -65,8 +68,11 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-          else
+          elif [ "${{ github.event_name }}" = "release" ]; then
             echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            # push event; use ref name
+            echo "tag=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
           fi
 
       - name: Upload to release
