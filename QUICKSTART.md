@@ -47,9 +47,13 @@ pio run --target upload
    2 → MQTT Settings
    Enable: y
    Server: mqtt.example.com
-   Port: 1883
+   Port: 1883 (use 8883 for TLS)
    [Rest can use defaults]
    ```
+   Note: Country/Region inputs are normalized to uppercase and spaces removed. Use ISO2 for country (e.g., AU). For TLS:
+   - Set Port to 8883 and Enable TLS = y
+   - Use custom CA = n (firmware embeds the broker CA)
+   - The firmware will retry via resolved IP if the certificate CN is an IP.
 5. Save and restart:
    ```
    6 → Save Configuration
@@ -59,7 +63,7 @@ pio run --target upload
 ### 5️⃣ Test It!
 Subscribe to MQTT to see messages:
 ```bash
-mosquitto_sub -h mqtt.example.com -t "meshcore/#" -v
+mosquitto_sub -h mqtt.example.com -t "MESHCORE/#" -v
 ```
 
 ## 🎉 You're Done!
@@ -81,16 +85,21 @@ python mqtt_test_client.py --broker mqtt.example.com
 ### Monitor in Real-time
 ```bash
 # See all messages
-mosquitto_sub -h mqtt.example.com -t "meshcore/messages"
+mosquitto_sub -h mqtt.example.com -t "MESHCORE/messages"
 
 # See gateway stats
-mosquitto_sub -h mqtt.example.com -t "meshcore/gateway/+/stats"
+mosquitto_sub -h mqtt.example.com -t "MESHCORE/gateway/+/stats"
+```
+
+### See Adverts
+```bash
+mosquitto_sub -h mqtt.example.com -t "MESHCORE/adverts" -v
 ```
 
 ### Send a Test Message
 ```bash
 mosquitto_pub -h mqtt.example.com \
-  -t "meshcore/commands/send" \
+  -t "MESHCORE/commands/send" \
   -m '{"to": 4294967295, "message": "Hello MeshCore!"}'
 ```
 

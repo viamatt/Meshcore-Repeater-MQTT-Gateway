@@ -193,7 +193,7 @@ Press `s` to see statistics:
 
 From another computer, subscribe to messages:
 ```bash
-mosquitto_sub -h mqtt.yourserver.com -t "meshcore/#" -v
+mosquitto_sub -h mqtt.yourserver.com -t "MESHCORE/#" -v
 ```
 
 You should see the gateway status message.

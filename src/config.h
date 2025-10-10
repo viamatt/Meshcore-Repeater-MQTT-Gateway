@@ -2,6 +2,7 @@
 #define CONFIG_H
 
 #include <Arduino.h>
+#include <ctype.h>
 
 // Version
 #define FIRMWARE_VERSION "1.0.0"
@@ -11,19 +12,19 @@
 #define CONFIG_MAGIC 0x4D435147  // "MCQG" - MeshCore MQTT Gateway
 
 // Default LoRa Settings
-#define DEFAULT_LORA_FREQ 915.0f
-#define DEFAULT_LORA_BW 125.0f
-#define DEFAULT_LORA_SF 7
+#define DEFAULT_LORA_FREQ 915.8f
+#define DEFAULT_LORA_BW 250.0f
+#define DEFAULT_LORA_SF 11
 #define DEFAULT_LORA_CR 5
 #define DEFAULT_LORA_TX_POWER 20
 
 // Default MQTT Settings
-#define DEFAULT_MQTT_SERVER "mqtt.example.com"
-#define DEFAULT_MQTT_PORT 1883
-#define DEFAULT_MQTT_USER ""
-#define DEFAULT_MQTT_PASSWORD ""
+#define DEFAULT_MQTT_SERVER "mqtt.ripplenetworks.com.au"
+#define DEFAULT_MQTT_PORT 8883
+#define DEFAULT_MQTT_USER "nswmesh"
+#define DEFAULT_MQTT_PASSWORD "nswmesh"
 #define DEFAULT_MQTT_CLIENT_ID "meshcore_gateway"
-#define DEFAULT_MQTT_TOPIC_PREFIX "meshcore"
+#define DEFAULT_MQTT_TOPIC_PREFIX "MESHCORE"
 
 // WiFi Settings
 #define DEFAULT_WIFI_SSID ""
@@ -78,11 +79,19 @@ struct MQTTConfig {
     char username[64];
     char password[64];
     char clientId[64];
-    char topicPrefix[64];
+    char topicPrefix[64];     // effective prefix used for publish/subscribe
+    char basePrefix[64];      // e.g. "meshcore"
+    char country[32];         // e.g. "Australia"
+    char region[32];          // e.g. "NSW" (optional)
+    bool useTLS;
+    bool insecureTLS;       // Allow TLS without certificate validation (setInsecure)
     bool enabled;
     bool publishRaw;         // Publish raw hex data
     bool publishDecoded;     // Publish decoded messages
     bool subscribeCommands;  // Subscribe to command topics
+    bool bridgeAll;          // Subscribe to raw/messages for RF rebroadcast
+    bool useCustomCA;        // Use a user-provided CA certificate
+    char caCert[2048];       // PEM-encoded CA certificate (optional)
 };
 
 struct LoRaConfig {
@@ -104,13 +113,94 @@ struct RepeaterConfig {
     uint16_t routeTimeout;  // seconds
 };
 
+struct SecurityConfig {
+    char guestPassword[32];
+    char adminPassword[32];
+};
+
+struct DiscoveryConfig {
+    bool advertEnabled;
+    uint16_t advertIntervalSec; // seconds
+};
+
+struct LocationConfig {
+    float latitude;   // degrees
+    float longitude;  // degrees
+};
+
+struct ClockConfig {
+    char ntpServer[64];
+    int16_t timezoneMinutes; // minutes offset from UTC
+    bool autoSync;           // sync at boot when WiFi is up
+};
+
 struct GatewayConfig {
     uint32_t magic;
     WiFiConfig wifi;
     MQTTConfig mqtt;
     LoRaConfig lora;
     RepeaterConfig repeater;
+    SecurityConfig security;
+    DiscoveryConfig discovery;
+    LocationConfig location;
+    ClockConfig clock;
 };
+
+// Derive a safe MQTT Client ID from the repeater node name
+inline void deriveClientIdFromNodeName(const char* nodeName, char* out, size_t outSize) {
+    if (outSize == 0) return;
+    if (!nodeName) nodeName = "";
+    size_t j = 0;
+    for (size_t i = 0; nodeName[i] != '\0' && j < outSize - 1; ++i) {
+        char c = nodeName[i];
+        if (isalnum((unsigned char)c) || c == '-' || c == '_') {
+            out[j++] = c;
+        } else if (c == ' ' || c == '.' || c == ':' || c == '/' || c == '\\') {
+            out[j++] = '_';
+        } else {
+            // skip any other characters
+        }
+    }
+    if (j == 0) {
+        const char* fallback = "MQTT-Gateway";
+        for (size_t i = 0; fallback[i] != '\0' && j < outSize - 1; ++i) {
+            out[j++] = fallback[i];
+        }
+    }
+    out[j] = '\0';
+}
+
+// Build hierarchical topic prefix from base/country/region into out
+// Normalizes all segments to uppercase and strips spaces for global consistency
+inline void deriveTopicPrefix(const MQTTConfig& mqtt, char* out, size_t outSize) {
+    if (outSize == 0) return;
+    out[0] = '\0';
+
+    auto appendUpperSegment = [&](const char* seg) {
+        if (!seg || seg[0] == '\0') return;
+        // Prepare uppercase sanitized copy of the segment
+        char upper[64];
+        size_t j = 0;
+        for (size_t i = 0; seg[i] != '\0' && j < sizeof(upper) - 1; ++i) {
+            char c = seg[i];
+            if (c == ' ') continue; // drop spaces
+            // Allow A-Z, a-z, 0-9, '-', '_'
+            if ((c >= 'a' && c <= 'z')) c = (char)toupper((unsigned char)c);
+            if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_') {
+                upper[j++] = c;
+            }
+        }
+        upper[j] = '\0';
+        if (upper[0] == '\0') return;
+        if (out[0] != '\0') strncat(out, "/", outSize - strlen(out) - 1);
+        strncat(out, upper, outSize - strlen(out) - 1);
+    };
+
+    const char* base = (mqtt.basePrefix[0] != '\0') ? mqtt.basePrefix : DEFAULT_MQTT_TOPIC_PREFIX;
+    appendUpperSegment(base);
+    appendUpperSegment(mqtt.country);   // Expect ISO2 (e.g., AU, NZ)
+    appendUpperSegment(mqtt.region);    // Expect subdivision code part (e.g., NSW, AUK)
+}
 
 // Default configuration
 inline GatewayConfig getDefaultConfig() {
@@ -128,11 +218,19 @@ inline GatewayConfig getDefaultConfig() {
     strncpy(config.mqtt.username, DEFAULT_MQTT_USER, sizeof(config.mqtt.username));
     strncpy(config.mqtt.password, DEFAULT_MQTT_PASSWORD, sizeof(config.mqtt.password));
     strncpy(config.mqtt.clientId, DEFAULT_MQTT_CLIENT_ID, sizeof(config.mqtt.clientId));
-    strncpy(config.mqtt.topicPrefix, DEFAULT_MQTT_TOPIC_PREFIX, sizeof(config.mqtt.topicPrefix));
+    strncpy(config.mqtt.basePrefix, DEFAULT_MQTT_TOPIC_PREFIX, sizeof(config.mqtt.basePrefix));
+    config.mqtt.country[0] = '\0';
+    config.mqtt.region[0] = '\0';
+    deriveTopicPrefix(config.mqtt, config.mqtt.topicPrefix, sizeof(config.mqtt.topicPrefix));
+    config.mqtt.useTLS = true;
+    config.mqtt.insecureTLS = false;
     config.mqtt.enabled = false;
     config.mqtt.publishRaw = true;
     config.mqtt.publishDecoded = true;
     config.mqtt.subscribeCommands = true;
+    config.mqtt.bridgeAll = true;
+    config.mqtt.useCustomCA = false;
+    config.mqtt.caCert[0] = '\0';
     
     // LoRa defaults
     config.lora.frequency = DEFAULT_LORA_FREQ;
@@ -150,6 +248,23 @@ inline GatewayConfig getDefaultConfig() {
     config.repeater.autoAck = true;
     config.repeater.broadcastEnabled = true;
     config.repeater.routeTimeout = 300;
+
+    // Security defaults
+    config.security.guestPassword[0] = '\0';
+    config.security.adminPassword[0] = '\0';
+
+    // Discovery defaults
+    config.discovery.advertEnabled = false;
+    config.discovery.advertIntervalSec = 300; // 5 minutes
+
+    // Location defaults
+    config.location.latitude = 0.0f;
+    config.location.longitude = 0.0f;
+
+    // Clock defaults
+    strncpy(config.clock.ntpServer, "pool.ntp.org", sizeof(config.clock.ntpServer));
+    config.clock.timezoneMinutes = 0; // UTC
+    config.clock.autoSync = true;
     
     return config;
 }

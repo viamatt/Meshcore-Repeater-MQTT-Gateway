@@ -4,17 +4,17 @@ Quick reference for all serial commands and configuration options.
 
 ## Runtime Commands
 
-These commands work anytime (press the key in serial monitor):
+These commands work anytime (press the key in serial monitor). By default, when you connect over serial you will see live radio/repeater/MQTT activity scrolling. Press `c` to pause live activity and enter the menu.
 
 | Key | Command | Description |
 |-----|---------|-------------|
-| `c` | Configuration Menu | Enter interactive configuration mode |
+| `c` | Configuration Menu | Enter interactive configuration mode (pauses live view) |
 | `s` | Show Statistics | Display packet counts, uptime, memory |
 | `r` | Restart | Reboot the device |
 
 ## Configuration Menu
 
-Press `c` to enter configuration menu, then use these options:
+Press `c` to enter configuration menu (the menu does NOT open automatically), then use these options:
 
 ### Main Menu Options
 
@@ -52,7 +52,7 @@ WiFi Password: ********
 
 ---
 
-### 2. MQTT Settings
+### 2. MQTT Settings (ISO-coded topics)
 
 ```
 Enable MQTT (y/n): y
@@ -60,8 +60,11 @@ MQTT Server: mqtt.example.com
 MQTT Port: 1883
 MQTT Username: myuser
 MQTT Password: ********
-Client ID: meshcore_gateway_001
-Topic Prefix: meshcore
+Client ID: (auto from Repeater Node Name)
+Base Prefix (e.g. MESHCORE): MESHCORE
+Country ISO2 (optional): AU
+Region ISO (optional): NSW
+Effective Topic Prefix: MESHCORE/AU/NSW
 Publish raw packets (y/n): y
 Publish decoded messages (y/n): y
 Subscribe to commands (y/n): y
@@ -73,8 +76,11 @@ Subscribe to commands (y/n): y
 - `Port`: Broker port (usually 1883 or 8883)
 - `Username`: MQTT authentication username (optional)
 - `Password`: MQTT authentication password (optional)
-- `Client ID`: Unique identifier for this gateway
-- `Topic Prefix`: Base topic for all MQTT messages
+- `Client ID`: Auto-derived from Repeater Node Name
+- `Base Prefix`: Root of topic hierarchy (default `MESHCORE`)
+- `Country ISO2`: Optional ISO country code (e.g., `AU`, `US`, `NZ`)
+- `Region ISO`: Optional ISO-3166-2 subdivision code part (e.g., `NSW`, `CA`, `AUK`)
+- `Effective Topic Prefix`: Uppercase hierarchical prefix computed from above
 - `Publish Raw`: Send raw hex packet data
 - `Publish Decoded`: Send parsed message data
 - `Subscribe Commands`: Accept commands from MQTT
@@ -87,7 +93,12 @@ Subscribe to commands (y/n): y
 **Notes:**
 - Empty username = anonymous connection
 - Client ID must be unique per broker
-- Topic prefix should not contain `/` at end
+- Effective topic prefix examples (normalized, uppercase):
+  - `MESHCORE`
+  - `MESHCORE/AU`
+  - `MESHCORE/AU/NSW`
+  - `MESHCORE/NZ/AUK`
+  - When Region is empty, the gateway also subscribes to all sub-regions for raw/messages and commands.
 
 ---
 
@@ -145,6 +156,7 @@ Enable CRC (y/n): y
 - `0x12` - Default private network
 - `0x34` - LoRaWAN public network
 - `0xXX` - Custom (must match all nodes)
+- Input accepts hex in `0xNN` or `NN` form (case-insensitive); non-hex chars ignored.
 
 **Notes:**
 - ⚠️ Restart required after changing LoRa settings
@@ -229,9 +241,9 @@ Repeater: Max Hops 2, Auto ACK
 
 ### Entering Configuration
 1. Open serial monitor at **115200 baud**
-2. Press `c` key
-3. Wait for menu to appear
-4. Enter menu number + Enter
+2. Watch live activity (default)
+3. Press `c` key to enter the menu (pauses live view)
+4. Wait for menu to appear, then enter a number + Enter
 
 ### Saving Settings
 - ⚠️ Always select option `6` to save before restarting!
@@ -268,8 +280,11 @@ If you reset to defaults (option `7`), these values are restored:
 | Port | 1883 |
 | Username | (empty) |
 | Password | (empty) |
-| Client ID | meshcore_gateway |
-| Topic Prefix | meshcore |
+| Client ID | (auto from Node Name) |
+| Base Prefix | meshcore |
+| Country | (empty) |
+| Region | (empty) |
+| Effective Topic Prefix | meshcore |
 | Enabled | No |
 | **LoRa** |
 | Frequency | 915.0 MHz |

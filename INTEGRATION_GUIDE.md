@@ -321,7 +321,7 @@ case 'T':
 ### 3. Monitor MQTT
 ```bash
 # Subscribe to all topics
-mosquitto_sub -h your-broker -t "meshcore/#" -v
+mosquitto_sub -h your-broker -t "MESHCORE/#" -v
 
 # Or use MQTT Explorer GUI tool
 ```
@@ -354,6 +354,12 @@ mosquitto_sub -h your-broker -t "meshcore/#" -v
 - Limit number of tracked nodes
 - Decrease JSON document sizes
 - Enable PSRAM if available
+
+### Issue: TLS fails with hostname mismatch
+**Solution**:
+- Use the broker hostname in MQTT Settings. The firmware embeds the CA and attempts hostname first.
+- If the certificate CN is bound to the broker IP, the firmware automatically retries via resolved IP.
+- Ensure time is synced (Clock menu) before TLS.
 
 ### Issue: Missed Packets
 **Solution**:

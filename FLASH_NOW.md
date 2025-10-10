@@ -143,12 +143,12 @@ Once running, any LoRa packets received will show:
 
 ```bash
 # On your computer, subscribe to all topics:
-mosquitto_sub -h mqtt.yourserver.com -t "meshcore/#" -v
+mosquitto_sub -h mqtt.yourserver.com -t "MESHCORE/#" -v
 
 # You'll see:
-meshcore/gateway/gateway_001/status {"online":true,"timestamp":12345,...}
-meshcore/raw {"timestamp":12345,"rssi":-85,"snr":8.5,"data":"48656C6C6F..."}
-meshcore/messages {"from":305419896,"to":4294967295,"message":"Hello MeshCore!",...}
+MESHCORE/gateway/gateway_001/status {"online":true,"timestamp":12345,...}
+MESHCORE/raw {"timestamp":12345,"rssi":-85,"snr":8.5,"data":"48656C6C6F..."}
+MESHCORE/messages {"from":305419896,"to":4294967295,"message":"Hello MeshCore!",...}
 ```
 
 ### Send LoRa Packet from MQTT
@@ -156,7 +156,7 @@ meshcore/messages {"from":305419896,"to":4294967295,"message":"Hello MeshCore!",
 ```bash
 # Send a message to LoRa network:
 mosquitto_pub -h mqtt.yourserver.com \
-  -t "meshcore/commands/send" \
+  -t "MESHCORE/commands/send" \
   -m "Hello from MQTT!"
 ```
 
@@ -259,7 +259,7 @@ IP: 192.168.1.100
 ```bash
 Connecting to MQTT: mqtt.yourserver.com
 ✓ MQTT connected
-Subscribed to: meshcore/commands/#
+Subscribed to: MESHCORE/commands/#
 ```
 
 ✅ MQTT is working!
