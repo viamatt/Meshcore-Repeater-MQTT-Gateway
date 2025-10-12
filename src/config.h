@@ -79,6 +79,17 @@
     #define LORA_DIO1 33
     #define LORA_DIO2 32
     // Optional GPS/UART pins exist but not used here
+#elif defined(RAK4631_ETH)
+    // RAK4631 + WisBlock SX1262 pin mapping (per RAK forum/reference)
+    // Note: SX1262 differs from SX127x; RadioLib requires SX1262 class
+    #define LORA_SCK   43
+    #define LORA_MISO  45
+    #define LORA_MOSI  44
+    #define LORA_CS    42
+    #define LORA_RST   38
+    #define LORA_DIO1  47
+    #define LORA_BUSY  46
+    // Antenna power control (if needed): 37
 #else
     // Generic ESP32 with LoRa module
     #define LORA_SCK 5
@@ -143,6 +154,13 @@ struct SecurityConfig {
     char adminPassword[32];
 };
 
+// Access control for MeshCore nodes
+struct AccessControlConfig {
+    bool denyEnabled;            // Enable denylist enforcement
+    uint8_t denyCount;           // Number of entries in denylist
+    uint32_t denylist[16];       // List of blocked node IDs (hex IDs)
+};
+
 struct DiscoveryConfig {
     bool advertEnabled;
     uint16_t advertIntervalSec; // seconds
@@ -159,6 +177,17 @@ struct ClockConfig {
     bool autoSync;           // sync at boot when WiFi is up
 };
 
+// Neighbor tracking for discovery
+struct NeighborInfo {
+    uint32_t nodeId;
+    char nodeName[32];
+    int lastRssi;
+    float lastSnr;
+    float latitude;
+    float longitude;
+    unsigned long lastSeenMs;
+};
+
 struct GatewayConfig {
     uint32_t magic;
     WiFiConfig wifi;
@@ -166,6 +195,7 @@ struct GatewayConfig {
     LoRaConfig lora;
     RepeaterConfig repeater;
     SecurityConfig security;
+    AccessControlConfig access;
     DiscoveryConfig discovery;
     LocationConfig location;
     ClockConfig clock;
@@ -263,7 +293,7 @@ inline GatewayConfig getDefaultConfig() {
     config.lora.spreadingFactor = DEFAULT_LORA_SF;
     config.lora.codingRate = DEFAULT_LORA_CR;
     config.lora.txPower = DEFAULT_LORA_TX_POWER;
-    config.lora.syncWord = 0x34;
+    config.lora.syncWord = 0x12;  // MeshCore default (RADIOLIB_SX126X_SYNC_WORD_PRIVATE)
     config.lora.enableCRC = true;
     
     // Repeater defaults
@@ -277,6 +307,13 @@ inline GatewayConfig getDefaultConfig() {
     // Security defaults
     config.security.guestPassword[0] = '\0';
     config.security.adminPassword[0] = '\0';
+
+    // Access control defaults
+    config.access.denyEnabled = false;
+    config.access.denyCount = 0;
+    for (size_t i = 0; i < (sizeof(config.access.denylist)/sizeof(config.access.denylist[0])); ++i) {
+        config.access.denylist[i] = 0;
+    }
 
     // Discovery defaults
     config.discovery.advertEnabled = false;

@@ -321,6 +321,10 @@ Topic: `{prefix}/adverts`
 }
 ```
 
+Notes:
+- Includes adverts received over LoRa from other nodes, not only the gateway’s own periodic advert. Each advert JSON shows the originating `nodeId` and the publishing `gateway`.
+- When configured at a parent prefix (e.g., `MESHCORE/AU` with no region), the gateway receives child-region adverts (e.g., `MESHCORE/AU/NSW/adverts`) via hierarchical subscriptions when bridging is enabled.
+
 #### Node Information
 Topic: `{prefix}/nodes/{nodeId}`
 
@@ -384,10 +388,20 @@ Note: Country and Region inputs entered via the serial menu are normalized to up
 
 Wildcard subscriptions:
 - If Region is empty, the gateway also subscribes to sub-regions under the selected prefix:
-  - `{prefix}/+/raw` and `{prefix}/+/messages`
+  - `{prefix}/+/raw`, `{prefix}/+/messages`, and `{prefix}/+/adverts`
   - Example: with `MESHCORE/AU`, the gateway receives `MESHCORE/AU/NSW/raw` automatically.
 
 Payload: (any) - Triggers gateway restart
+
+#### Bridged Topics (for RF rebroadcast)
+
+When bridging is enabled (`Bridge All` = yes), the gateway consumes and may rebroadcast over LoRa the following MQTT topics under the effective `{prefix}` and, if configured at a parent level, also from child regions:
+
+- `{prefix}/raw` — expects JSON `{ data: hex, gateway?: string }`
+- `{prefix}/messages` — expects JSON `{ message: string, gateway?: string }`
+- `{prefix}/adverts` — expects JSON `{ nodeId, name, lat, lon, gateway?: string }`
+
+Messages tagged with `gateway` matching the current gateway’s `clientId` are ignored to prevent loops. Recent-packet deduplication on the RF side further reduces echoing.
 
 ## 🔧 Integration with MeshCore
 
@@ -461,7 +475,7 @@ Subscribe to topics to monitor:
 - `{prefix}/gateway/+/status` - All gateway statuses
 - `{prefix}/messages` - All mesh messages
 - `{prefix}/gateway/+/stats` - Gateway statistics
- - `{prefix}/adverts` - Advert events published by the gateway
+ - `{prefix}/adverts` - Advert events (gateway-origin and LoRa-received)
 
 Examples using `mosquitto_sub`:
 ```bash

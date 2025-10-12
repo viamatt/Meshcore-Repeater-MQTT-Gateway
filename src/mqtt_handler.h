@@ -2,9 +2,13 @@
 #define MQTT_HANDLER_H
 
 #include <Arduino.h>
-#include <WiFi.h>
 #include <HardwareSerial.h>
+#ifdef USE_ETHERNET
+#include <Ethernet.h>
+#else
+#include <WiFi.h>
 #include <WiFiClientSecure.h>
+#endif
 #include <PubSubClient.h>
 #include "ca_cert.h"
 #include <time.h>
@@ -20,19 +24,34 @@ typedef std::function<void(const uint8_t* payload, size_t length)> MQTTMessageCa
 class MQTTHandler {
 public:
     MQTTHandler(GatewayConfig& cfg) 
-        : config(cfg), wifiClient(), secureClient(), mqttClient(wifiClient), 
-          lastReconnectAttempt(0), messageCallback(nullptr) {}
+        : config(cfg)
+#ifdef USE_ETHERNET
+        , mqttClient(ethClient)
+#else
+        , wifiClient(), secureClient(), mqttClient(wifiClient)
+#endif
+        , lastReconnectAttempt(0), messageCallback(nullptr) {}
     
     bool begin() {
-        if (!config.wifi.enabled || !config.mqtt.enabled) {
+        if (!config.mqtt.enabled) {
             return false;
         }
-        
-        // Connect to WiFi
-        if (!connectWiFi()) {
-            return false;
-        }
-        
+
+#ifdef USE_ETHERNET
+        // Initialize Ethernet via DHCP; generate a stable locally-administered MAC from nodeId
+        byte mac[6];
+        mac[0] = 0x02; // locally administered, unicast
+        mac[1] = 0x00;
+        mac[2] = (byte)((config.repeater.nodeId >> 24) & 0xFF);
+        mac[3] = (byte)((config.repeater.nodeId >> 16) & 0xFF);
+        mac[4] = (byte)((config.repeater.nodeId >> 8) & 0xFF);
+        mac[5] = (byte)(config.repeater.nodeId & 0xFF);
+        Ethernet.begin(mac);
+        // Force non-TLS for Ethernet path
+        config.mqtt.useTLS = false;
+#else
+        if (!config.wifi.enabled) return false;
+        if (!connectWiFi()) return false;
         // Optionally configure TLS
         if (config.mqtt.useTLS) {
             if (config.mqtt.useCustomCA && config.mqtt.caCert[0] != '\0') {
@@ -47,6 +66,7 @@ public:
         } else {
             mqttClient.setClient(wifiClient);
         }
+#endif
         // Prefer hostname; if certificate CN/SAN does not match hostname (common when CN is an IP),
         // we'll retry with the resolved IP address inside connectMQTT().
         mqttClient.setServer(config.mqtt.server, config.mqtt.port);
@@ -62,12 +82,13 @@ public:
     }
     
     void loop() {
-        // Handle WiFi reconnection
+#ifndef USE_ETHERNET
         if (WiFi.status() != WL_CONNECTED) {
             Serial.println(F("WiFi disconnected, reconnecting..."));
             connectWiFi();
             return;
         }
+#endif
         
         // Handle MQTT reconnection
         if (!mqttClient.connected()) {
@@ -185,8 +206,16 @@ public:
         doc["packetsSent"] = packetsSent;
         doc["packetsForwarded"] = packetsForwarded;
         doc["packetsFailed"] = packetsFailed;
+#ifndef USE_ETHERNET
         doc["rssi"] = WiFi.RSSI();
+#else
+        doc["rssi"] = 0;
+#endif
+#ifdef ESP32
         doc["freeHeap"] = ESP.getFreeHeap();
+#else
+        doc["freeHeap"] = 0;
+#endif
         
         String output;
         serializeJson(doc, output);
@@ -194,6 +223,41 @@ public:
         mqttClient.publish(topic, output.c_str(), false);
     }
     
+    // Publish neighbor list
+    void publishNeighbors(const NeighborInfo* neighbors, size_t count) {
+        if (!mqttClient.connected()) {
+            return;
+        }
+        
+        char topic[128];
+        snprintf(topic, sizeof(topic), "%s/gateway/%s/neighbors", 
+                config.mqtt.topicPrefix, config.mqtt.clientId);
+        
+        StaticJsonDocument<2048> doc;
+        doc["timestamp"] = millis();
+        doc["gateway"] = config.mqtt.clientId;
+        doc["count"] = count;
+        doc["gatewayLat"] = config.location.latitude;
+        doc["gatewayLon"] = config.location.longitude;
+        
+        JsonArray neighborsArray = doc.createNestedArray("neighbors");
+        for (size_t i = 0; i < count; i++) {
+            JsonObject neighbor = neighborsArray.createNestedObject();
+            neighbor["nodeId"] = neighbors[i].nodeId;
+            neighbor["name"] = neighbors[i].nodeName;
+            neighbor["rssi"] = neighbors[i].lastRssi;
+            neighbor["snr"] = neighbors[i].lastSnr;
+            neighbor["latitude"] = neighbors[i].latitude;
+            neighbor["longitude"] = neighbors[i].longitude;
+            neighbor["lastSeen"] = neighbors[i].lastSeenMs;
+        }
+        
+        String output;
+        serializeJson(doc, output);
+        
+        mqttClient.publish(topic, output.c_str(), false);
+    }
+
     // Publish gateway status
     void publishGatewayStatus(bool online) {
         if (!mqttClient.connected()) {
@@ -204,11 +268,19 @@ public:
         snprintf(topic, sizeof(topic), "%s/gateway/%s/status", 
                 config.mqtt.topicPrefix, config.mqtt.clientId);
         
-        StaticJsonDocument<256> doc;
+        StaticJsonDocument<384> doc;
         doc["online"] = online;
         doc["timestamp"] = millis();
+#ifndef USE_ETHERNET
         doc["ip"] = WiFi.localIP().toString();
         doc["rssi"] = WiFi.RSSI();
+#else
+        doc["ip"] = Ethernet.localIP().toString();
+        doc["rssi"] = 0;
+#endif
+        // Include GPS location
+        doc["latitude"] = config.location.latitude;
+        doc["longitude"] = config.location.longitude;
         
         String output;
         serializeJson(doc, output);
@@ -244,13 +316,20 @@ public:
     
 private:
     GatewayConfig& config;
+#ifdef USE_ETHERNET
+    EthernetClient ethClient;
+#else
     WiFiClient wifiClient;
     WiFiClientSecure secureClient;
+#endif
     PubSubClient mqttClient;
     unsigned long lastReconnectAttempt;
     MQTTMessageCallback messageCallback;
     
     bool connectWiFi() {
+#ifdef USE_ETHERNET
+        return true;
+#else
         if (WiFi.status() == WL_CONNECTED) {
             return true;
         }
@@ -285,6 +364,7 @@ private:
             Serial.println(F("\n✗ WiFi connection failed"));
             return false;
         }
+#endif
     }
     
     bool connectMQTT() {
@@ -387,6 +467,7 @@ private:
             Serial.println(mqttClient.state());
             // If TLS is enabled but time might not be set yet, attempt time sync once
             if (config.mqtt.useTLS) {
+#ifndef USE_ETHERNET
                 setupSystemTimeIfNeeded();
                 // Some deployments use a certificate whose CN is the broker IP (not DNS name).
                 // Retry once by resolving the hostname and connecting via IP address so hostname
@@ -433,6 +514,7 @@ private:
                         return true;
                     }
                 }
+#endif
             }
             return false;
         }
@@ -530,13 +612,40 @@ private:
                     messageCallback((const uint8_t*)text, strlen(text));
                 }
             }
+        } else if (config.mqtt.bridgeAll && (topicStr == String(config.mqtt.topicPrefix) + "/adverts" || topicStr.endsWith("/adverts"))) {
+            // Expect JSON with { nodeId, name, lat, lon, gateway? }
+            StaticJsonDocument<1024> doc;
+            DeserializationError err = deserializeJson(doc, payload, length);
+            if (err == DeserializationError::Ok && messageCallback) {
+                const char* gw = doc["gateway"] | "";
+                if (strcmp(gw, config.mqtt.clientId) == 0) {
+                    return; // drop self
+                }
+                uint32_t nodeId = doc["nodeId"] | 0u;
+                const char* name = doc["name"] | "";
+                double latD = doc["lat"] | 0.0;
+                double lonD = doc["lon"] | 0.0;
+                // Enforce access control denylist for bridged adverts
+                if (config.access.denyEnabled && nodeId != 0) {
+                    for (uint8_t i = 0; i < config.access.denyCount && i < (sizeof(config.access.denylist)/sizeof(config.access.denylist[0])); ++i) {
+                        if (config.access.denylist[i] == nodeId) {
+                            return; // blocked node, do not bridge over RF
+                        }
+                    }
+                }
+                // Compose ADVERT line as used on RF
+                char advertLine[160];
+                snprintf(advertLine, sizeof(advertLine), "ADVERT %08X %s %.6f %.6f",
+                         nodeId, name, latD, lonD);
+                messageCallback((const uint8_t*)advertLine, strlen(advertLine));
+            }
         }
     }
 
     void setupSystemTimeIfNeeded() {
+#ifdef ESP32
         struct tm timeinfo = {};
         if (getLocalTime(&timeinfo)) {
-            // Time already set
             return;
         }
         Serial.println(F("Setting time via NTP for TLS..."));
@@ -553,6 +662,7 @@ private:
         } else {
             Serial.println(F("\n⚠ Failed to set time, TLS may fail"));
         }
+#endif
     }
 };
 

@@ -26,7 +26,11 @@
 #include "serial_config.h"
 
 // LoRa radio object
+#ifdef RAK4631_ETH
+SX1262 radio = new Module(LORA_CS, LORA_DIO1, LORA_RST, LORA_BUSY);
+#else
 SX1276 radio = new Module(LORA_CS, LORA_DIO0, LORA_RST, LORA_DIO1);
+#endif
 
 // UI helpers for consistent boxed output
 static const int BOX_CONTENT_WIDTH = 54; // width between bars, excluding leading/trailing single spaces
@@ -70,16 +74,6 @@ bool radioInitialized = false;
 volatile bool packetReceived = false;
 
 // Discovery / Neighbour tracking
-struct NeighborInfo {
-    uint32_t nodeId;
-    char nodeName[32];
-    int lastRssi;
-    float lastSnr;
-    float latitude;
-    float longitude;
-    unsigned long lastSeenMs;
-};
-
 static NeighborInfo neighbors[16];
 static size_t neighborCount = 0;
 static unsigned long lastAdvertSent = 0;
@@ -133,6 +127,7 @@ void handleLoRaPacket(uint8_t* data, size_t length, int rssi, float snr);
 bool sendLoRaPacket(const uint8_t* data, size_t length);
 void checkSerialInput();
 void publishStats();
+void publishNeighbours();
 void blinkLED();
 void setRadioFlag();
 void exitConfigMode();
@@ -141,8 +136,10 @@ void printTelemetryToSerial();
 void printNeighboursToSerial();
 
 // Radio interrupt flag
+volatile uint32_t interruptCount = 0;
 void IRAM_ATTR setRadioFlag() {
     packetReceived = true;
+    interruptCount++;
 }
 
 void setup() {
@@ -243,6 +240,8 @@ void setup() {
     Serial.println(F("  'c' - Enter configuration menu"));
     Serial.println(F("  's' - Show statistics"));
     Serial.println(F("  'n' - Show neighbours"));
+    Serial.println(F("  'd' - Debug info (interrupt count)"));
+    Serial.println(F("  't' - Send test packet (TX test)"));
     Serial.println(F("  'r' - Restart device"));
     Serial.println();
     Serial.println(F("(Hint) Press 'c' at any time to open the configuration menu"));
@@ -270,6 +269,7 @@ void loop() {
     unsigned long now = millis();
     if (!configMode && mqttHandler && mqttHandler->isConnected() && now - lastStatsPublish > 60000) {
         publishStats();
+        publishNeighbours(); // Also publish neighbor list with stats
         lastStatsPublish = now;
     }
     
@@ -292,10 +292,25 @@ void setupLoRa() {
     // Initialize SPI
     SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_CS);
     
-    Serial.print(F("Initializing SX1276 radio... "));
+    Serial.print(F("Initializing radio... "));
     
     // Initialize radio with configuration
-    int state = radio.begin(
+    int state;
+#ifdef RAK4631_ETH
+    // SX1262 API differs: frequency, bandwidth (kHz), spreading factor, coding rate, syncWord, power, preambleLength
+    state = radio.begin(
+        config.lora.frequency,
+        config.lora.bandwidth,
+        config.lora.spreadingFactor,
+        config.lora.codingRate,
+        config.lora.syncWord,
+        config.lora.txPower,
+        8
+    );
+    // Enable DIO2 RF switch control and DIO3 TCXO if needed (defaults okay for WisBlock)
+    radio.setDio2AsRfSwitch(true);
+#else
+    state = radio.begin(
         config.lora.frequency,
         config.lora.bandwidth,
         config.lora.spreadingFactor,
@@ -305,6 +320,7 @@ void setupLoRa() {
         8,  // preamble length
         0   // gain (0 = auto)
     );
+#endif
     
     if (state == RADIOLIB_ERR_NONE) {
         Serial.println(F("success!"));
@@ -314,10 +330,25 @@ void setupLoRa() {
             radio.setCRC(true);
         }
         
-        // Set DIO0 to trigger on packet reception
-        radio.setDio0Action(setRadioFlag, RISING);
+        // CRITICAL: For LilyGo boards, explicitly set output power and PA config
+        // This ensures the PA (Power Amplifier) is actually enabled
+        #if defined(LILYGO_LORA32_V21)
+        Serial.print(F("Configuring PA... "));
+        // Use PA_BOOST pin (required for LilyGo V2.1)
+        state = radio.setOutputPower(config.lora.txPower, true);  // true = use PA_BOOST
+        if (state == RADIOLIB_ERR_NONE) {
+            Serial.println(F("OK"));
+        } else {
+            Serial.printf("FAILED (%d)\n", state);
+        }
+        #endif
         
-        // Start listening
+        // CRITICAL: Set packet received action (RadioLib's proper method)
+        Serial.print(F("Setting packet received action... "));
+        radio.setPacketReceivedAction(setRadioFlag);
+        Serial.println(F("OK"));
+        
+        // Start continuous listening
         state = radio.startReceive();
         if (state == RADIOLIB_ERR_NONE) {
             Serial.println(F("✓ Radio listening for packets"));
@@ -374,6 +405,7 @@ void handleLoRaReceive() {
     // Check if packet was received
     if (packetReceived) {
         packetReceived = false;
+        Serial.println(F("🔔 Interrupt fired! Reading packet..."));
         
         // Buffer for received data
         uint8_t buffer[256];
@@ -387,6 +419,7 @@ void handleLoRaReceive() {
             int rssi = radio.getRSSI();
             float snr = radio.getSNR();
             
+            Serial.printf("📥 RX SUCCESS: %d bytes, RSSI=%d dBm, SNR=%.1f dB\n", length, rssi, snr);
             packetsReceived++;
             
             // Handle the packet
@@ -394,10 +427,17 @@ void handleLoRaReceive() {
             
         } else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
             Serial.println(F("⚠ CRC error!"));
+        } else {
+            Serial.printf("⚠ Read error, code: %d\n", state);
         }
         
-        // Put radio back into receive mode
-        radio.startReceive();
+        // ✅ CRITICAL FIX: Put radio back into receive mode
+        state = radio.startReceive();
+        if (state != RADIOLIB_ERR_NONE) {
+            Serial.print(F("✗ Failed to restart receive, code: "));
+            Serial.println(state);
+            radioInitialized = false;
+        }
     }
 }
 
@@ -415,6 +455,12 @@ void handleLoRaPacket(uint8_t* data, size_t length, int rssi, float snr) {
     
     // Try to interpret as text if printable
     bool isPrintable = true;
+    // Track parsed ADVERT details if present so we can publish origin and metadata
+    bool parsedAdvert = false;
+    uint32_t advertNodeId = 0;
+    char advertName[32] = {0};
+    float advertLat = 0.0f;
+    float advertLon = 0.0f;
     for (size_t i = 0; i < length; i++) {
         if (data[i] < 32 || data[i] > 126) {
             isPrintable = false;
@@ -452,6 +498,30 @@ void handleLoRaPacket(uint8_t* data, size_t length, int rssi, float snr) {
             tok = strtok_r(nullptr, " ", &saveptr);   // lon
             float lon = tok ? atof(tok) : 0.0f;
 
+            // Apply access control denylist: drop adverts from denied node IDs
+            bool denied = false;
+            if (config.access.denyEnabled) {
+                for (uint8_t i = 0; i < config.access.denyCount && i < (sizeof(config.access.denylist)/sizeof(config.access.denylist[0])); ++i) {
+                    if (config.access.denylist[i] == nid && nid != 0) {
+                        denied = true;
+                        break;
+                    }
+                }
+            }
+
+            if (denied) {
+                Serial.println(F("   ✗ Advert dropped (denied node)"));
+                // Skip neighbor update and further processing for denied node
+                return;
+            }
+
+            // Remember parsed advert for later MQTT publication/decoded origin
+            parsedAdvert = true;
+            advertNodeId = nid;
+            strncpy(advertName, nname, sizeof(advertName) - 1);
+            advertLat = lat;
+            advertLon = lon;
+
             size_t idx = neighborCount;
             for (size_t i = 0; i < neighborCount; ++i) {
                 if (neighbors[i].nodeId == nid) { idx = i; break; }
@@ -475,6 +545,10 @@ void handleLoRaPacket(uint8_t* data, size_t length, int rssi, float snr) {
     
     // Forward to MQTT if connected
     if (mqttHandler && mqttHandler->isConnected()) {
+        // If this was an ADVERT received over RF, publish a structured advert event
+        if (parsedAdvert) {
+            mqttHandler->publishAdvert(advertNodeId, advertName, advertLat, advertLon);
+        }
         // Publish raw packet
         if (config.mqtt.publishRaw) {
             mqttHandler->publishRawPacket(data, length, rssi, snr);
@@ -486,8 +560,10 @@ void handleLoRaPacket(uint8_t* data, size_t length, int rssi, float snr) {
             size_t msgLen = min(length, sizeof(message) - 1);
             memcpy(message, data, msgLen);
             
+            // For ADVERT messages, set origin to the advertising node; otherwise use gateway id
+            uint32_t fromId = parsedAdvert && advertNodeId != 0 ? advertNodeId : config.repeater.nodeId;
             mqttHandler->publishDecodedMessage(
-                config.repeater.nodeId,  // from (us)
+                fromId,
                 0xFFFFFFFF,              // to (broadcast)
                 message,
                 0,                       // message type
@@ -580,6 +656,47 @@ void checkSerialInput() {
                 delay(1000);
                 ESP.restart();
                 break;
+                
+            case 'd':
+            case 'D':
+                Serial.println(F("\n┌── DEBUG INFO ──────────────────────────────────────────┐"));
+                Serial.printf("│ Radio Interrupts:    %u\n", interruptCount);
+                Serial.printf("│ Packets Received:    %u\n", packetsReceived);
+                Serial.printf("│ Packets Sent:        %u\n", packetsSent);
+                Serial.printf("│ Packets Forwarded:   %u\n", packetsForwarded);
+                Serial.printf("│ Packets Failed:      %u\n", packetsFailed);
+                Serial.printf("│ Radio Initialized:   %s\n", radioInitialized ? "YES" : "NO");
+                Serial.printf("│ Packet Flag:         %s\n", packetReceived ? "SET" : "CLEAR");
+                // Check radio status
+                if (radioInitialized) {
+                    Serial.println(F("│"));
+                    Serial.print(F("│ Radio status check...  "));
+                    int state = radio.startReceive();
+                    if (state == RADIOLIB_ERR_NONE) {
+                        Serial.println(F("RX ACTIVE"));
+                        // Try to read RSSI to verify radio is listening
+                        int rssi = radio.getRSSI();
+                        Serial.printf("│ Current RSSI:         %d dBm\n", rssi);
+                    } else {
+                        Serial.printf("RX FAILED (code: %d)\n", state);
+                    }
+                }
+                Serial.println(F("└────────────────────────────────────────────────────────┘\n"));
+                break;
+                
+            case 't':
+            case 'T':
+                Serial.println(F("\n📡 Sending test packet..."));
+                {
+                    uint8_t testPacket[] = "TEST_GATEWAY_TX";
+                    if (sendLoRaPacket(testPacket, sizeof(testPacket))) {
+                        Serial.println(F("✓ Test packet transmitted successfully!"));
+                        Serial.println(F("  (Your other radio should receive this if in range)"));
+                    } else {
+                        Serial.println(F("✗ Test packet transmission failed!"));
+                    }
+                }
+                break;
         }
     }
 }
@@ -587,6 +704,12 @@ void checkSerialInput() {
 void publishStats() {
     if (mqttHandler) {
         mqttHandler->publishStats(packetsReceived, packetsSent, packetsForwarded, packetsFailed);
+    }
+}
+
+void publishNeighbours() {
+    if (mqttHandler) {
+        mqttHandler->publishNeighbors(neighbors, neighborCount);
     }
 }
 

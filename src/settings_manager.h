@@ -71,6 +71,16 @@ public:
         prefs.putString("sec_guest", config.security.guestPassword);
         prefs.putString("sec_admin", config.security.adminPassword);
 
+        // Access control (denylist)
+        prefs.putBool("ac_deny_en", config.access.denyEnabled);
+        prefs.putUChar("ac_deny_cnt", config.access.denyCount);
+        // Store up to 16 denylist entries
+        for (uint8_t i = 0; i < config.access.denyCount && i < 16; ++i) {
+            char key[16];
+            snprintf(key, sizeof(key), "ac_dn_%02u", i);
+            prefs.putUInt(key, config.access.denylist[i]);
+        }
+
         // Discovery
         prefs.putBool("disc_en", config.discovery.advertEnabled);
         prefs.putUShort("disc_int", config.discovery.advertIntervalSec);
@@ -195,6 +205,19 @@ public:
         config.security.guestPassword[sizeof(config.security.guestPassword) - 1] = '\0';
         strncpy(config.security.adminPassword, prefs.getString("sec_admin", "").c_str(), sizeof(config.security.adminPassword) - 1);
         config.security.adminPassword[sizeof(config.security.adminPassword) - 1] = '\0';
+
+        // Access control (denylist)
+        config.access.denyEnabled = prefs.getBool("ac_deny_en", false);
+        config.access.denyCount = prefs.getUChar("ac_deny_cnt", 0);
+        if (config.access.denyCount > 16) config.access.denyCount = 16;
+        for (uint8_t i = 0; i < config.access.denyCount; ++i) {
+            char key[16];
+            snprintf(key, sizeof(key), "ac_dn_%02u", i);
+            config.access.denylist[i] = prefs.getUInt(key, 0u);
+        }
+        for (uint8_t i = config.access.denyCount; i < 16; ++i) {
+            config.access.denylist[i] = 0;
+        }
 
         // Discovery
         config.discovery.advertEnabled = prefs.getBool("disc_en", false);
