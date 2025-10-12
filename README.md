@@ -1,4 +1,4 @@
-# MeshCore MQTT Gateway - THIS IS BETA SOFTWARE and still under development.
+# MeshCore MQTT Gateway - THIS IS BETA SOFTWARE and still under development. Has a bug with radio starting. Fixing it.
 
 A powerful gateway firmware that bridges MeshCore LoRa mesh networks with MQTT brokers, enabling bidirectional message flow between LoRa devices and MQTT-based applications.
 
